@@ -1,29 +1,57 @@
-version: '3.8'
-
 services:
   app:
     build: .
     container_name: my-node-app
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - PORT=3000
-      - NODE_ENV=development
-      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
     depends_on:
-      - redis
-    volumes:
-      - .:/app
-      - /app/node_modules
-    command: npx nodemon index.js
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/health',r=>{process.exit(r.statusCode===200?0:1)})\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
 
   redis:
     image: redis:7-alpine
     container_name: my-node-redis
     ports:
       - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     volumes:
       - redis_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
 
 volumes:
   redis_data:

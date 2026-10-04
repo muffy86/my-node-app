@@ -7,6 +7,11 @@ const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 const promClient = require("prom-client");
 
+const healthRouter = require("./routes/health");
+const infoRouter = require("./routes/info");
+const usersRouter = require("./routes/users");
+const errorHandler = require("./middleware/errorHandler");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -93,7 +98,7 @@ app.get("/api/openapi.json", (req, res) => res.json(swaggerSpec));
  *         description: API info
  */
 app.get("/", (req, res) => {
-  res.json({ message: "Hello from Node.js!", env: NODE_ENV, version: "2.0.0" });
+  res.json({ message: "Hello from Node.js!", env: NODE_ENV });
 });
 
 /**
@@ -105,15 +110,7 @@ app.get("/", (req, res) => {
  *       200:
  *         description: System health
  */
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    memory: process.memoryUsage(),
-    env: NODE_ENV,
-  });
-});
+app.use("/api/health", healthRouter);
 
 /**
  * @openapi
@@ -124,18 +121,7 @@ app.get("/api/health", (req, res) => {
  *       200:
  *         description: System information
  */
-app.get("/api/info", (req, res) => {
-  res.json({
-    name: "my-node-app",
-    version: "2.0.0",
-    node: process.version,
-    platform: process.platform,
-    arch: process.arch,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    cpus: require("os").cpus().length,
-  });
-});
+app.use("/api/info", infoRouter);
 
 /**
  * @openapi
@@ -145,22 +131,15 @@ app.get("/api/info", (req, res) => {
  *     responses:
  *       200:
  *         description: User list
+ *   post:
+ *     summary: Create a user
+ *     responses:
+ *       201:
+ *         description: Created user
+ *       400:
+ *         description: Missing name or email
  */
-const users = [
-  { id: 1, name: "Alice Johnson", email: "alice@example.com", role: "admin" },
-  { id: 2, name: "Bob Smith", email: "bob@example.com", role: "user" },
-  { id: 3, name: "Charlie Brown", email: "charlie@example.com", role: "user" },
-];
-
-app.get("/api/users", (req, res) => {
-  res.json({ count: users.length, data: users });
-});
-
-app.get("/api/users/:id", (req, res) => {
-  const user = users.find((u) => u.id === parseInt(req.params.id));
-  if (!user) return res.status(404).json({ error: "User not found" });
-  res.json(user);
-});
+app.use("/api/users", usersRouter);
 
 // ── Metrics Endpoint ──
 app.get("/metrics", async (req, res) => {
@@ -169,22 +148,21 @@ app.get("/metrics", async (req, res) => {
 });
 
 // ── 404 Handler ──
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found", path: req.path });
+app.use((req, res, next) => {
+  const err = new Error("Not Found");
+  err.statusCode = 404;
+  next(err);
 });
 
 // ── Error Handler ──
-app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${err.message}`);
-  res.status(500).json({ error: "Internal server error", message: NODE_ENV === "development" ? err.message : undefined });
-});
+app.use(errorHandler);
 
 module.exports = app;
 
 // ── Start ──
 if (require.main === module) {
   const server = app.listen(PORT, () => {
-    console.log(`my-node-app v2.0.0 running on http://localhost:${PORT}`);
+    console.log(`my-node-app running on http://localhost:${PORT}`);
     console.log(`  API Docs:    http://localhost:${PORT}/api/docs`);
     console.log(`  Metrics:     http://localhost:${PORT}/metrics`);
     console.log(`  Health:      http://localhost:${PORT}/api/health`);

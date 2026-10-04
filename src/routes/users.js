@@ -10,6 +10,19 @@ router.get('/', (req, res) => {
   res.json({ users });
 });
 
+// GET /api/users/:id — fetch a single user
+router.get('/:id', (req, res) => {
+  const user = users.find((u) => u.id === parseInt(req.params.id, 10));
+
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  res.json({ user });
+});
+
 // POST /api/users — create a new user
 router.post('/', (req, res) => {
   const { name, email } = req.body;

@@ -1,20 +1,20 @@
-# Use the official Node.js image
-FROM node:20-alpine
+FROM node:20-alpine AS dependencies
 
-# Set working directory
+RUN apk upgrade --no-cache
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
+FROM node:20-alpine AS runtime
+
+RUN apk upgrade --no-cache
+ENV NODE_ENV=production
 WORKDIR /app
 
-# Copy package files
-COPY package.json ./
+COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package.json ./
+COPY --chown=node:node src ./src
 
-# Install production dependencies only
-RUN npm install --omit=dev --no-audit --no-fund --loglevel=error
-
-# Copy the rest of the application
-COPY . .
-
-# Expose the application port
+USER node
 EXPOSE 3000
-
-# Start the application
 CMD ["node", "src/app.js"]
